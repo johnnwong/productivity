@@ -44,8 +44,16 @@ As of 2026-10-28, the first local-first application is implemented using React,
 TypeScript, and Vite. It includes a daily dashboard, completion/count/LeetCode
 habits, entry editing/deletion, effective-dated targets, archiving/restoration,
 historical graphs, JSON backup/restore, and an installable offline app shell.
-There is no backend, account system, automatic step tracking, or LeetCode sync.
-No public hosting has been configured.
+The updated UI defaults to a compact searchable list, with optional cards.
+Habits can define custom numerical/text/link/choice fields; lifting logs record
+individual sets and exercise-specific weight, reps, sets, and volume charts.
+Existing local records and version-1 backups remain readable.
+
+An optional Supabase email-sign-in/sync integration is implemented, but no real
+Supabase project or public hosting has been configured. Live cross-device sync
+is NOT enabled or verified. The sync client has been tested with a simulated
+backend across two browser contexts. Automatic step tracking and LeetCode
+account synchronization remain unimplemented.
 
 ### Architecture and commands
 
@@ -54,6 +62,12 @@ No public hosting has been configured.
 - `src/useStore.ts`: localStorage persistence and recovery. Storage key:
   `little-by-little.v1`. Never replace unreadable data with empty defaults.
 - `src/App.tsx`: dashboard, journal, insights, and native accessible dialogs.
+- `src/HabitForms.tsx`: configurable field editor and generic entry forms,
+  including the LeetCode template and per-set lifting editor.
+- `src/sync.ts`, `src/useSync.ts`, `src/SyncPanel.tsx`: optional Supabase client,
+  email login, local-first synchronization, and explicit conflict choices.
+- `supabase/schema.sql`: owner-isolated table, row-level read policy, and
+  authenticated atomic compare-and-swap write RPC.
 - `src/style.css`: warm garden-inspired palette, responsive layout, restrained
   decorative animation, and `prefers-reduced-motion` support.
 - `src/usePwa.ts`, `vite.config.ts`, `public/manifest.webmanifest`: offline
@@ -64,6 +78,12 @@ No public hosting has been configured.
   `npm run build`.
 - Browser tests: `npx playwright install chromium`, then `npm run test:e2e`
   after building. Tests start and stop their own production server on port 4173.
+  Stop any user preview on that port before testing and restore it afterwards.
+- Mock cloud test: build with
+  `VITE_SUPABASE_URL=https://test-project.supabase.co VITE_SUPABASE_PUBLISHABLE_KEY=test-public-key npm run build`,
+  then `SYNC_TEST=1 npx playwright test tests/sync.spec.ts`.
+  Restore the ordinary build with `npm run build` afterwards. Mock tests do not
+  verify the SQL policies or a real hosted database.
 - Local installable preview: `npm run build`, then
   `npm run preview -- --port 4173 --strictPort`.
 
@@ -73,8 +93,9 @@ worker. Keep a stable origin/port for real data; different origins have separate
 storage. Production hosting must use HTTPS and serve the app at the domain root
 (not an unconfigured GitHub Pages project subpath).
 
-Local storage is not encrypted, synced, or guaranteed against browser data
-clearing or quota limits. Export backups regularly. Stale-window saves are
+Without cloud configuration, local storage is not synced or guaranteed against
+browser data clearing or quota limits. Records are not end-to-end encrypted.
+Export backups regularly. Stale-window saves are
 rejected rather than overwriting another window's changes; reload before
 retrying. Ordinary localStorage writes are not a transactional multi-tab
 database, so use one active editing window.
@@ -91,6 +112,9 @@ database, so use one active editing window.
   accounts/cloud storage or native desktop packaging.
 - The owner wants a comforting, distinctive, playful UI with motion that does
   not overcomplicate the workflow. Reduced-motion preferences must be honored.
+- The owner subsequently requested persistent cross-device data, less clutter,
+  editable tracked fields, lifting logs/charts, and alternate display options.
+  This supersedes the earlier local-only product scope.
 
 ### Initial implementation decisions
 
@@ -105,7 +129,30 @@ database, so use one active editing window.
 - Initial habit targets apply to all dates; edits apply from the selected date
   until the next effective target. Units/types/precision remain fixed.
 - Backdated entries are supported. New UI entries cannot be future-dated.
-- No remote fonts, analytics, or third-party runtime requests.
+- No remote fonts or analytics. Optional cloud configuration contacts only the
+  configured Supabase project for sign-in and synchronization.
+- Compact list is the default; list/cards preference is device-local.
+  The large hero, motivational panels, and inline journal preview were removed.
+- Field IDs are stable. Hide fields instead of deleting historical values.
+  Field type, unit, precision, and choice options stay fixed after creation.
+  New requirements affect entry saves, not validation of past missing values.
+- Lifting uses one exercise per entry and per-set nonnegative weight and
+  positive whole-number reps. Weight units are fixed per habit. Volume means
+  sum(weight * reps), not estimated one-rep max or bodyweight-adjusted volume.
+- Supabase is the implementation default, not an owner-selected provider.
+  Its project, email settings, public configuration, and HTTPS hosting still
+  require setup; see `PRD.md` section 17.
+- Sync requires explicit initial data selection, then attempts after local
+  edits (debounced), focus/reconnection, and every 30 seconds. Offline local
+  edits remain available. Concurrent edits pause for review, not blind merge.
+- Automatic sync pauses while entry/habit/delete dialogs are open and resumes
+  after closing them. Delayed downloads must recheck the signed-in account
+  before replacing local records.
+- A whole-document revision-checked RPC prevents stale overwrites. Conflict
+  choices explicitly replace one side; pre-sync local recovery data is stored
+  under `little-before-sync.<owner>`. Backup downloads remain available.
+- Do not cache Supabase responses in the offline service worker. Never use a
+  service-role/secret key in frontend code or tracked configuration.
 
 ### Proposed defaults, not owner-approved decisions
 
@@ -150,10 +197,12 @@ temporary task list, or replacement for implementation documentation.
 
 ## Decision log
 
-| Date       | Decision or fact                                                                                        | Status                        |
-| ---------- | ------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| 2026-10-27 | Begin with rich habit tracking, LeetCode logs, water, steps, and graphs.                                | Owner vision                  |
-| 2026-10-27 | No implementation was available in the empty GitHub repository.                                         | Verified at document creation |
-| 2026-10-27 | The release boundaries and detailed behavior in `PRD.md` are an initial proposal.                       | Pending owner review          |
-| 2026-10-28 | Single-user installable web app, local storage, and comforting animated UI.                             | Owner approved                |
-| 2026-10-28 | React/Vite static app; local JSON persistence; manual step and practice logging; export/import backups. | Implemented                   |
+| Date       | Decision or fact                                                                                        | Status                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| 2026-10-27 | Begin with rich habit tracking, LeetCode logs, water, steps, and graphs.                                | Owner vision                                               |
+| 2026-10-27 | No implementation was available in the empty GitHub repository.                                         | Verified at document creation                              |
+| 2026-10-27 | The release boundaries and detailed behavior in `PRD.md` are an initial proposal.                       | Pending owner review                                       |
+| 2026-10-28 | Single-user installable web app, local storage, and comforting animated UI.                             | Owner approved                                             |
+| 2026-10-28 | React/Vite static app; local JSON persistence; manual step and practice logging; export/import backups. | Implemented                                                |
+| 2026-10-28 | Less clutter, optional list/cards, configurable fields, lifting, and cross-device persistence.          | Owner requested                                            |
+| 2026-10-28 | Optional Supabase sync; account-isolated CAS writes and explicit conflict resolution.                   | Client implemented; live setup blocked on external project |

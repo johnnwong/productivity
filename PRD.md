@@ -32,8 +32,18 @@ The initial app, provisionally named **Little by Little**, implements:
 - Garden-inspired soft colors, original animated illustration, responsive
   navigation, subtle progress motion, and reduced-motion support.
 
-The owner approved an installable, single-user, local-first app. Accounts,
-servers, and cloud sync are not required. The implementation uses React,
+Update: the large decorative hero and motivational panels have been removed.
+The dashboard now defaults to a compact searchable list with a remembered
+card-view option. Journal entries and charts live on their own screens.
+Custom tracking fields support numbers, text, links, and choices. LeetCode
+fields can be enabled/hidden or extended. Lifting entries include an exercise
+and individual weight/reps sets, with weight, sets, reps, and volume charts and
+an exercise filter.
+
+The owner approved an installable, single-user app and subsequently requested
+cross-device persistence. Optional Supabase email sign-in and synchronization
+are implemented, but are not yet connected to a live project.
+The implementation uses React,
 TypeScript, and Vite, rather than a server framework.
 
 This is not a native desktop installer. Browser installation produces a
@@ -41,7 +51,9 @@ separate app window. Actual installation menus depend on the browser and OS.
 No public website or hosted deployment has been configured.
 
 The core behavior and offline reopening are exercised in Chromium desktop and
-mobile-emulation tests. Real Safari/iOS installation has not been verified.
+mobile-emulation tests. Two-context cloud flows are tested with a simulated
+Supabase API; the real SQL policies and live cross-device behavior have not
+been verified. Real Safari/iOS installation has not been verified.
 Later roadmap phases are not implemented or promised by this inventory.
 
 ## 3. User needs
@@ -78,8 +90,9 @@ not yet approved by the owner.
 
 ### Later candidates
 
-Flexible schedules, reminders, streaks, data export/import, automatic step
-imports, cloud sync, and additional productivity modules are proposals.
+Flexible schedules, reminders, streaks, automatic step imports, and additional
+productivity modules remain proposals. Export/import is implemented.
+Cross-device cloud sync is now requested; external setup remains pending.
 They must not delay the core habit-tracking release by default.
 
 ## 5. Primary experience
@@ -273,8 +286,10 @@ No dates, external integrations, or later modules are promised by this roadmap.
 These do not change the confirmed vision. Resolve each before implementing the
 affected area.
 
-- Decided: installable responsive web app; React/TypeScript/Vite; no account.
-- Decided: browser-local storage and manual JSON export/import backups.
+- Decided: installable responsive web app; React/TypeScript/Vite.
+- Updated request: cross-device persistent data, with sign-in for private sync.
+- Implemented: local storage and JSON backups; optional Supabase integration
+  awaiting a real project, account, and hosted URL.
 - Initial implementation: explicit practice date/time plus optional minutes,
   without a live timer. Confirm whether a timer is wanted later.
 - Initial implementation: logged practice counts toward the daily target;
@@ -317,6 +332,85 @@ A failed write shows an error and does not update the displayed saved state.
 Unreadable data is retained for download/recovery. Backups replace data only
 after validation and explicit confirmation; they do not merge.
 
-Local browser storage is not encrypted or backed up automatically. Use one
+Local browser storage is not encrypted or backed up automatically. Optional
+sync does not replace independent backups. Use one
 active editing window. A stale snapshot is rejected on save, but localStorage
 does not provide full multi-window transactions.
+
+## 17. Cross-device sync setup and current limitation
+
+**Live sync is not enabled.** No Supabase project, credentials, or public app
+hosting were supplied. The following is the one-time setup needed to connect
+the implemented integration:
+
+1. Create a Supabase project under your own account. Review the provider's
+   current pricing, retention, availability, and backup policies.
+2. Run `supabase/schema.sql` in that project's SQL editor. It creates a private
+   `habit_spaces` table, an owner-only read policy, and a revision-checked
+   `save_habit_space` RPC. Anonymous users cannot access it, authenticated
+   clients cannot directly write the table, and the RPC checks the expected
+   account against `auth.uid()`.
+3. In Supabase Authentication, create/invite your own email user and enable
+   email sign-in. The app does not create new users through its sign-in form.
+   Keep public signups disabled if only you should use the project. Configure
+   an email delivery provider if required for reliable production delivery.
+4. Copy `.env.example` to `.env.local` and set `VITE_SUPABASE_URL` and
+   `VITE_SUPABASE_PUBLISHABLE_KEY`. Only use a public/publishable key (or a
+   legacy anon key), NEVER a service-role/admin secret. Frontend variables are
+   visible in the built app. Security depends on authentication and SQL
+   policies, not on hiding this public key.
+5. Deploy `dist/` after `npm ci && npm run build` to a static HTTPS host at
+   the domain root. Set these same build-time variables on that host.
+   A hosting provider/account has not been selected or provisioned.
+6. Configure Supabase's Site URL and allowed redirect URLs for your exact
+   production origin. Add `http://127.0.0.1:4173` if using the local preview.
+   Email links must be opened on the device/browser being signed in.
+7. Export existing local data before connecting. In Settings & sync, sign in,
+   select Sync now, and explicitly publish the device copy or use an existing
+   cloud copy. Use the same email/project on every device. On a new device,
+   choose the cloud copy instead of publishing empty starter habits.
+8. Before relying on it, verify on two real devices: publish, pull, edit,
+   reopen, disconnect/reconnect, and deliberately make concurrent edits.
+   Verify in Supabase that unauthenticated access fails and one user cannot
+   read/write another user's row. These real-provider checks remain pending.
+
+After initial connection, synchronization is attempted after local edits, on
+focus/reconnection, and every 30 seconds while open. Automatic sync pauses while
+entry, habit, or deletion dialogs are open and resumes after closing them.
+Delayed downloads recheck the account before replacing device records.
+A whole-document baseline
+and server revision determine whether to push, pull, or pause. Simultaneous
+changes do not silently overwrite: Settings asks which copy to keep. This is
+explicit replacement, not field-level merge. The rejected side should be
+exported before resolution; a local pre-sync recovery snapshot is also saved.
+Signing out leaves local habit data on the device. Use a private browser/profile.
+
+Cloud records are subject to Supabase's protections; this is not end-to-end
+encryption. No service credentials are committed. Habit data is not stored in
+GitHub, and offline caches contain app assets only, not cloud API responses.
+
+## 18. Configurable fields and lifting acceptance criteria
+
+- Users can create simple counters without added fields, or richer custom,
+  LeetCode, and lifting logs. Date/time remain system fields.
+- Fields have stable IDs, labels, types, units, required flags, and visibility.
+  Hiding a field does not delete old values or its numerical chart metric.
+- Renaming a label keeps its history. Type, precision, unit, and choice
+  options cannot be changed in place after creation; create a replacement
+  field to avoid reinterpreting historical values.
+- A newly required field does not invalidate saved history. Saving or editing
+  an entry requires its current visible required fields.
+- Numerical fields can be charted as daily sums with their own units. Missing
+  values remain distinct from recorded zero.
+- A lifting log records one exercise and one or more sets. Each set has
+  nonnegative weight and positive whole-number reps. Weight units are pounds
+  or kilograms, fixed per habit. Users can add/remove sets and edit entries.
+- Lifting charts support daily heaviest weight, total sets, reps, and volume
+  (sum of weight times reps), with an exercise filter. Weight maxima are not
+  summed across days. Bodyweight is not inferred from a zero-weight set.
+- The compact list is the default, with an optional card view remembered on
+  the device and a name search. Charts and entries do not grow the daily page
+  vertically. Soft colors and subtle feedback remain; repeated decoration is
+  removed.
+- Existing version-1 local data and backup files retain entries and goals.
+  The schema extension uses defaults rather than destructive reset.

@@ -12,16 +12,57 @@ const dateSchema = z
     );
   }, "Invalid calendar date");
 const numberSchema = z.number().finite().min(0).max(1_000_000_000);
+export const fieldSchema = z
+  .object({
+    id: z.string().regex(/^[a-zA-Z0-9-]{1,60}$/),
+    label: z.string().trim().min(1).max(60),
+    type: z.enum(["number", "text", "url", "choice"]),
+    unit: z.string().max(20).default(""),
+    required: z.boolean().default(false),
+    active: z.boolean().default(true),
+    whole: z.boolean().default(false),
+    options: z.array(z.string().trim().min(1).max(60)).max(30).default([]),
+  })
+  .superRefine((field, ctx) => {
+    if (
+      [
+        "__proto__",
+        "constructor",
+        "prototype",
+        "progress",
+        "lift-weight",
+        "lift-volume",
+        "lift-sets",
+        "lift-reps",
+      ].includes(field.id) ||
+      (field.type === "choice" &&
+        (!field.options.length ||
+          new Set(field.options).size !== field.options.length))
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Choice fields need unique options and field identifiers must be safe.",
+      });
+    }
+  });
+export type TrackingField = z.infer<typeof fieldSchema>;
+export const setSchema = z.object({
+  weight: numberSchema,
+  reps: numberSchema.int().positive(),
+});
 export const habitSchema = z
   .object({
     id: z.string().uuid(),
     name: z.string().trim().min(1).max(60),
-    kind: z.enum(["check", "count", "leetcode"]),
+    kind: z.enum(["check", "count", "leetcode", "custom", "lift"]),
     unit: z.string().trim().max(20),
     whole: z.boolean(),
     color: z.enum(["sage", "blue", "peach", "lilac"]),
     archived: z.boolean(),
     createdOn: dateSchema,
+    fields: z.array(fieldSchema).max(30).optional(),
+    weightUnit: z.enum(["kg", "lb"]).default("lb"),
     goals: z
       .array(z.object({ from: dateSchema, target: numberSchema.positive() }))
       .min(1),
@@ -31,6 +72,12 @@ export const habitSchema = z
       new Set(habit.goals.map((goal) => goal.from)).size !== habit.goals.length
     ) {
       ctx.addIssue({ code: "custom", message: "Duplicate goal dates" });
+    }
+    if (
+      habit.fields &&
+      new Set(habit.fields.map((f) => f.id)).size !== habit.fields.length
+    ) {
+      ctx.addIssue({ code: "custom", message: "Duplicate tracking fields" });
     }
     if (
       habit.goals.some(
@@ -78,6 +125,11 @@ export const entrySchema = z.object({
   url: safeUrl.optional(),
   note: z.string().max(5000),
   duration: numberSchema.optional(),
+  metrics: z
+    .record(z.string(), z.union([z.string().max(5000), numberSchema]))
+    .default({}),
+  exercise: z.string().trim().max(120).optional(),
+  sets: z.array(setSchema).max(100).optional(),
 });
 export const stateSchema = z
   .object({
@@ -112,13 +164,26 @@ export const stateSchema = z
         continue;
       }
       if (
-        habit.kind === "leetcode" &&
-        (!entry.url || !entry.difficulty || entry.value !== 1)
+        ["leetcode", "custom", "lift"].includes(habit.kind) &&
+        entry.value !== 1
       ) {
         ctx.addIssue({
           code: "custom",
-          message: "Practice entries need a link, difficulty, and value of one",
+          message: "Activity entries count once per log",
         });
+      }
+      if (habit.kind === "lift" && (!entry.exercise || !entry.sets?.length)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Lifting entries need an exercise and at least one set",
+        });
+      }
+      for (const field of trackingFields(habit)) {
+        const value = fieldValue(entry, field.id);
+        if (value !== undefined && value !== "") {
+          const error = validateField(field, value);
+          if (error) ctx.addIssue({ code: "custom", message: error });
+        }
       }
       if (
         (habit.whole || habit.kind === "check") &&
@@ -216,6 +281,7 @@ export function starterState(
     archived: false,
     createdOn: today,
     goals: [{ from: "0001-01-01", target }],
+    weightUnit: "lb",
   });
   return {
     version: 1,
@@ -240,6 +306,15 @@ export function starterState(
 export function saveEntry(state: AppState, entry: Entry): AppState {
   const habit = state.habits.find((h) => h.id === entry.habitId);
   if (!habit) throw new Error("This habit no longer exists.");
+  for (const field of trackingFields(habit).filter((f) => f.active)) {
+    const value = fieldValue(entry, field.id);
+    if (field.required && (value === undefined || value === ""))
+      throw new Error(`${field.label} is required.`);
+    if (value !== undefined && value !== "") {
+      const error = validateField(field, value);
+      if (error) throw new Error(error);
+    }
+  }
   const entries = state.entries.filter(
     (e) =>
       e.id !== entry.id &&
@@ -250,6 +325,159 @@ export function saveEntry(state: AppState, entry: Entry): AppState {
       ),
   );
   return stateSchema.parse({ ...state, entries: [...entries, entry] });
+}
+export function trackingFields(
+  habit: Pick<Habit, "kind" | "fields">,
+): TrackingField[] {
+  if (habit.fields) return habit.fields;
+  if (habit.kind === "leetcode")
+    return [
+      { id: "title", label: "Problem title", type: "text", required: false },
+      { id: "url", label: "Problem link", type: "url", required: true },
+      {
+        id: "difficulty",
+        label: "Difficulty",
+        type: "choice",
+        required: true,
+        options: ["easy", "medium", "hard"],
+      },
+      {
+        id: "duration",
+        label: "Minutes",
+        type: "number",
+        required: false,
+        unit: "min",
+      },
+      {
+        id: "note",
+        label: "What did you learn?",
+        type: "text",
+        required: false,
+      },
+    ].map((field) => fieldSchema.parse(field));
+  return [];
+}
+export function fieldValue(
+  entry: Entry,
+  id: string,
+): string | number | undefined {
+  if (Object.hasOwn(entry.metrics, id)) return entry.metrics[id];
+  if (
+    id === "title" ||
+    id === "url" ||
+    id === "difficulty" ||
+    id === "duration" ||
+    id === "note"
+  )
+    return entry[id];
+}
+function validateField(
+  field: TrackingField,
+  value: string | number,
+): string | null {
+  if (field.type === "number") {
+    if (
+      typeof value !== "number" ||
+      !numberSchema.safeParse(value).success ||
+      (field.whole && !Number.isInteger(value))
+    )
+      return `${field.label} needs a nonnegative ${field.whole ? "whole " : ""}number.`;
+  } else {
+    if (typeof value !== "string") return `${field.label} needs text.`;
+    if (field.type === "url" && !safeUrl.safeParse(value).success)
+      return `${field.label} needs a valid http or https link.`;
+    if (field.type === "choice" && !field.options.includes(value))
+      return `${field.label} needs one of its configured choices.`;
+  }
+  return null;
+}
+export function chartMetrics(habit: Habit) {
+  return [
+    {
+      id: "progress",
+      label: habit.kind === "count" ? habit.unit : "Entries",
+      unit: habit.unit || "check-ins",
+      aggregate: "sum" as const,
+    },
+    ...trackingFields(habit)
+      .filter((f) => f.type === "number")
+      .map((f) => ({
+        id: f.id,
+        label: `${f.label}${f.active ? "" : " (hidden)"}`,
+        unit: f.unit,
+        aggregate: "sum" as const,
+      })),
+    ...(habit.kind === "lift"
+      ? [
+          {
+            id: "lift-weight",
+            label: "Heaviest weight",
+            unit: habit.weightUnit,
+            aggregate: "max" as const,
+          },
+          {
+            id: "lift-volume",
+            label: "Volume (weight × reps)",
+            unit: `${habit.weightUnit} × reps`,
+            aggregate: "sum" as const,
+          },
+          {
+            id: "lift-sets",
+            label: "Sets",
+            unit: "sets",
+            aggregate: "sum" as const,
+          },
+          {
+            id: "lift-reps",
+            label: "Reps",
+            unit: "reps",
+            aggregate: "sum" as const,
+          },
+        ]
+      : []),
+  ];
+}
+export function metricOn(
+  state: AppState,
+  habit: Habit,
+  day: string,
+  metric: string,
+  exercise = "",
+) {
+  const entries = state.entries.filter(
+    (e) =>
+      e.habitId === habit.id &&
+      e.date === day &&
+      (!exercise || e.exercise === exercise),
+  );
+  if (metric === "progress")
+    return {
+      value: entries.reduce((sum, e) => sum + e.value, 0),
+      recorded: entries.length > 0,
+    };
+  const values = entries.flatMap((e) => {
+    if (metric.startsWith("lift-"))
+      return (
+        e.sets?.map((s) =>
+          metric === "lift-weight"
+            ? s.weight
+            : metric === "lift-volume"
+              ? s.weight * s.reps
+              : metric === "lift-reps"
+                ? s.reps
+                : 1,
+        ) ?? []
+      );
+    const value = fieldValue(e, metric);
+    return typeof value === "number" ? [value] : [];
+  });
+  return {
+    value:
+      metric === "lift-weight"
+        ? Math.max(0, ...values)
+        : values.reduce((a, b) => a + b, 0),
+    recorded: values.length > 0,
+  };
 }
 export function changeGoal(habit: Habit, from: string, target: number): Habit {
   return habitSchema.parse({

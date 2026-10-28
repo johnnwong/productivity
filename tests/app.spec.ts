@@ -82,6 +82,9 @@ test("rich LeetCode logs support multiple problems and dates", async ({
     page.locator(".habit-card.peach .progress-number strong"),
   ).toHaveText("2");
   await page.reload();
+  await page
+    .getByRole("button", { name: "Little journal", exact: true })
+    .click();
   await expect(page.getByRole("link", { name: "Two Sum" })).toHaveAttribute(
     "href",
     "https://leetcode.com/problems/two-sum/",
@@ -90,6 +93,7 @@ test("rich LeetCode logs support multiple problems and dates", async ({
     "Remember the hash map.",
   );
   await page.getByRole("button", { name: "Previous day" }).click();
+  await page.getByRole("button", { name: "My day", exact: true }).click();
   await expect(
     page.locator(".habit-card.peach .progress-number strong"),
   ).toHaveText("0");
@@ -145,6 +149,7 @@ test("backup round trip validates before replacing data", async ({ page }) => {
   await page
     .getByRole("button", { name: "Settings and backups", exact: true })
     .click();
+  await page.getByText("Backups & recovery", { exact: true }).click();
   const downloaded = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Export a backup", exact: true })
@@ -184,6 +189,9 @@ test("storage failure preserves the open form and retry does not duplicate", asy
   await page.goto("/");
   await page.getByRole("button", { name: "Log problem" }).click();
   await page.getByLabel("Problem title").fill("Keep my input");
+  await page
+    .getByRole("combobox", { name: "Difficulty", exact: true })
+    .selectOption("easy");
   await page
     .getByLabel("Problem link")
     .fill("https://leetcode.com/problems/two-sum/");
@@ -236,6 +244,7 @@ test("corrupted storage is not overwritten and can be recovered", async ({
   await page
     .getByRole("button", { name: "Recovery & backups", exact: true })
     .click();
+  await page.getByText("Backups & recovery", { exact: true }).click();
   await page.getByLabel("Choose backup file").setInputFiles({
     name: "backup.json",
     mimeType: "application/json",
@@ -286,7 +295,8 @@ test("responsive design and reduced motion", async ({ page }, testInfo) => {
   ).toBe(true);
   expect(
     await page
-      .locator(".plant.tall")
+      .locator(".progress-number strong")
+      .first()
       .evaluate((el) => getComputedStyle(el).animationName),
   ).toBe("none");
   await page.screenshot({
@@ -301,4 +311,101 @@ test("responsive design and reduced motion", async ({ page }, testInfo) => {
     path: testInfo.outputPath("growth.png"),
     fullPage: true,
   });
+});
+test("compact list, cards and search keep many habits manageable", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: "List view", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".hero")).toHaveCount(0);
+  const height = await page
+    .locator(".habits-list")
+    .evaluate((el) => el.getBoundingClientRect().height);
+  expect(height).toBeLessThan(500);
+  await page.getByRole("button", { name: "Card view", exact: true }).click();
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Card view", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.getByLabel("Find a habit").fill("water");
+  await expect(page.locator(".habit-card")).toHaveCount(0);
+  await page.getByLabel("Find a habit").fill("hydrated");
+  await expect(page.locator(".habit-card")).toHaveCount(1);
+});
+test("custom fields can be logged, charted and hidden without losing data", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New habit", exact: true }).click();
+  await page.getByLabel("What would you like to grow?").fill("Reading");
+  await page.getByLabel("How will you track it?").selectOption("custom");
+  await page.getByRole("button", { name: "Add a field", exact: true }).click();
+  await page.getByLabel("Field name", { exact: true }).fill("Pages");
+  await page.getByLabel("Field unit", { exact: true }).fill("pages");
+  await page.getByRole("button", { name: "Plant a new habit" }).click();
+  const row = page.locator(".habit-card").filter({ hasText: "Reading" });
+  await row.getByRole("button", { name: "Log entry" }).click();
+  await page.getByLabel("Pages (pages)").fill("25");
+  await page.getByRole("button", { name: "Save this little win" }).click();
+  await page.getByRole("button", { name: "View charts for Reading" }).click();
+  await page.getByLabel("Chart metric").selectOption({ label: "Pages" });
+  await expect(page.locator(".insight-totals strong").first()).toHaveText("25");
+  await page.getByRole("button", { name: "My day", exact: true }).click();
+  await page.getByRole("button", { name: "Edit Reading" }).click();
+  await expect(page.getByLabel("Show when logging")).toBeVisible();
+  await page.getByLabel("Show when logging").uncheck();
+  await page.getByRole("button", { name: "Save habit", exact: true }).click();
+  await row.getByRole("button", { name: "Log entry" }).click();
+  await expect(page.getByLabel("Pages (pages)")).toHaveCount(0);
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page
+    .getByRole("button", { name: "Little journal", exact: true })
+    .click();
+  await expect(page.locator(".entry-fields")).toContainText("Pages (hidden)");
+  await expect(page.locator(".entry-fields")).toContainText("25 pages");
+});
+test("lifting supports per-set weights, reps, edits, and volume charts", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New habit", exact: true }).click();
+  await page.getByLabel("What would you like to grow?").fill("Strength");
+  await page.getByLabel("How will you track it?").selectOption("lift");
+  await page
+    .getByRole("combobox", { name: "Weight unit", exact: true })
+    .selectOption("kg");
+  await page.getByRole("button", { name: "Plant a new habit" }).click();
+  const row = page.locator(".habit-card").filter({ hasText: "Strength" });
+  await row.getByRole("button", { name: "Log entry" }).click();
+  await page.getByLabel("Exercise", { exact: true }).fill("Bench press");
+  await page.getByLabel("Set 1 weight (kg)", { exact: true }).fill("50");
+  await page.getByLabel("Set 1 reps", { exact: true }).fill("10");
+  await page.getByRole("button", { name: "Add set", exact: true }).click();
+  await page.getByLabel("Set 2 weight (kg)", { exact: true }).fill("60");
+  await page.getByLabel("Set 2 reps", { exact: true }).fill("8");
+  await page.getByRole("button", { name: "Save this little win" }).click();
+  await page.getByRole("button", { name: "View charts for Strength" }).click();
+  await page.getByLabel("Chart metric").selectOption("lift-volume");
+  await expect(page.locator(".insight-totals strong").first()).toHaveText(
+    "980",
+  );
+  await page.getByLabel("Chart metric").selectOption("lift-weight");
+  await expect(page.locator(".insight-totals strong").first()).toHaveText("60");
+  await page
+    .getByRole("button", { name: "Little journal", exact: true })
+    .click();
+  await expect(page.locator(".entry-note")).toContainText("50 kg × 10");
+  await page
+    .locator(".entry-row")
+    .getByRole("button", { name: "Edit", exact: true })
+    .click();
+  await page.getByLabel("Set 2 weight (kg)", { exact: true }).fill("65");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await page.getByRole("button", { name: "Growth", exact: true }).click();
+  await page.getByLabel("Chart metric").selectOption("lift-volume");
+  await expect(page.locator(".insight-totals strong").first()).toHaveText(
+    "1,020",
+  );
 });
