@@ -17,7 +17,7 @@ guarantee that every AI system reads it.
 ## Project identity
 
 - Repository: https://github.com/johnnwong/productivity
-- Working name: Productivity.
+- Application name: Little by Little (initial design name); repository: Productivity.
 - Vision: an all-in-one personal productivity application, starting with rich,
   flexible habit tracking and useful progress visualizations.
 - Primary user: an individual tracking personal routines and improvement.
@@ -40,12 +40,44 @@ habit, and a detailed activity log have different data needs.
 
 ## Current implementation status
 
-As of 2026-10-27, GitHub reported that the repository was empty. No application
-code, framework, database, tests, deployment, or implemented features were
-verified. These documents describe intent, not shipped functionality.
+As of 2026-10-28, the first local-first application is implemented using React,
+TypeScript, and Vite. It includes a daily dashboard, completion/count/LeetCode
+habits, entry editing/deletion, effective-dated targets, archiving/restoration,
+historical graphs, JSON backup/restore, and an installable offline app shell.
+There is no backend, account system, automatic step tracking, or LeetCode sync.
+No public hosting has been configured.
 
-Replace this section with verified facts as implementation progresses. Include
-the actual run, build, lint, and test commands once they exist.
+### Architecture and commands
+
+- `src/model.ts`: versioned Zod schemas, progress/date calculations, durable
+  write validation, and backup validation.
+- `src/useStore.ts`: localStorage persistence and recovery. Storage key:
+  `little-by-little.v1`. Never replace unreadable data with empty defaults.
+- `src/App.tsx`: dashboard, journal, insights, and native accessible dialogs.
+- `src/style.css`: warm garden-inspired palette, responsive layout, restrained
+  decorative animation, and `prefers-reduced-motion` support.
+- `src/usePwa.ts`, `vite.config.ts`, `public/manifest.webmanifest`: offline
+  caching, explicit update prompts, and standalone installation metadata.
+- Install: `npm ci` (Node 22.12+ on the Node 22 line, or a supported newer LTS).
+- Develop: `npm run dev`.
+- Validate: `npm test`, `npm run lint`, `npm run format:check`,
+  `npm run build`.
+- Browser tests: `npx playwright install chromium`, then `npm run test:e2e`
+  after building. Tests start and stop their own production server on port 4173.
+- Local installable preview: `npm run build`, then
+  `npm run preview -- --port 4173 --strictPort`.
+
+Use the production preview at `http://127.0.0.1:4173` for installation/offline
+testing. Development uses a different origin and does not register a service
+worker. Keep a stable origin/port for real data; different origins have separate
+storage. Production hosting must use HTTPS and serve the app at the domain root
+(not an unconfigured GitHub Pages project subpath).
+
+Local storage is not encrypted, synced, or guaranteed against browser data
+clearing or quota limits. Export backups regularly. Stale-window saves are
+rejected rather than overwriting another window's changes; reload before
+retrying. Ordinary localStorage writes are not a transactional multi-tab
+database, so use one active editing window.
 
 ## Product decisions and assumptions
 
@@ -55,17 +87,30 @@ the actual run, build, lint, and test commands once they exist.
 - LeetCode entries need richer information than completion alone.
 - Water and steps require numerical tracking.
 - Historical graphs are core functionality.
+- The owner approved a single-user, local-first installable web app instead of
+  accounts/cloud storage or native desktop packaging.
+- The owner wants a comforting, distinctive, playful UI with motion that does
+  not overcomplicate the workflow. Reduced-motion preferences must be honored.
+
+### Initial implementation decisions
+
+- Use React/Vite rather than a server framework because this app is entirely
+  client-side and can be served as static files.
+- Store explicit reporting dates and wall-clock times in the reporting time
+  zone captured at first use. Dates do not move on device time-zone changes.
+- LeetCode logs record timestamp fields and optional duration, with no live
+  timer. Each logged problem counts as practice, not verified solved status.
+- Initial targets: one problem, eight cups, 6,000 manually entered steps, and
+  one self-care check-in. They are editable starter habits, not activity data.
+- Initial habit targets apply to all dates; edits apply from the selected date
+  until the next effective target. Units/types/precision remain fixed.
+- Backdated entries are supported. New UI entries cannot be future-dated.
+- No remote fonts, analytics, or third-party runtime requests.
 
 ### Proposed defaults, not owner-approved decisions
 
-- Start with a single-user experience; authentication and cloud sync are not
-  prerequisites unless the chosen deployment requires them.
-- Support completion, count, and activity-log habits.
-- Interpret LeetCode "time" as both when a session happened and an optional
-  duration, pending clarification.
-- Start with manual step entry; automatic device tracking is a later,
-  separately scoped integration.
-- Use daily targets for the first release. More flexible schedules can follow.
+- Automatic device tracking is a later, separately scoped integration.
+- More flexible schedules can follow the implemented daily targets.
 - Treat tasks, projects, notes, and planning as possible expansion areas, not
   promised requirements.
 
@@ -105,8 +150,10 @@ temporary task list, or replacement for implementation documentation.
 
 ## Decision log
 
-| Date | Decision or fact | Status |
-|---|---|---|
-| 2026-10-27 | Begin with rich habit tracking, LeetCode logs, water, steps, and graphs. | Owner vision |
-| 2026-10-27 | No implementation was available in the empty GitHub repository. | Verified at document creation |
-| 2026-10-27 | The release boundaries and detailed behavior in `PRD.md` are an initial proposal. | Pending owner review |
+| Date       | Decision or fact                                                                                        | Status                        |
+| ---------- | ------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| 2026-10-27 | Begin with rich habit tracking, LeetCode logs, water, steps, and graphs.                                | Owner vision                  |
+| 2026-10-27 | No implementation was available in the empty GitHub repository.                                         | Verified at document creation |
+| 2026-10-27 | The release boundaries and detailed behavior in `PRD.md` are an initial proposal.                       | Pending owner review          |
+| 2026-10-28 | Single-user installable web app, local storage, and comforting animated UI.                             | Owner approved                |
+| 2026-10-28 | React/Vite static app; local JSON persistence; manual step and practice logging; export/import backups. | Implemented                   |

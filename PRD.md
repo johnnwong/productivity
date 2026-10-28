@@ -1,8 +1,8 @@
 # Productivity: Product Requirements Document
 
-Last updated: 2026-10-27
+Last updated: 2026-10-28
 
-Status: initial product definition; not an implementation inventory.
+Status: first local implementation available; roadmap proposals remain separate.
 
 ## 1. Vision
 
@@ -15,21 +15,44 @@ and maintain a detailed LeetCode practice log in the same application.
 
 ## 2. Current capabilities
 
-No application capabilities have been verified as implemented. At document
-creation, the GitHub repository was empty.
+The initial app, provisionally named **Little by Little**, implements:
 
-All capabilities below are requirements or proposals. A roadmap phase does not
-mean a feature has shipped or has an agreed delivery date.
+- Responsive daily habit dashboard with completion, numerical, and LeetCode
+  practice tracking.
+- LeetCode date/time, difficulty, link, optional title, notes, and duration.
+- Manual water and step entries, including zero and fractional cups.
+- Entry editing/deletion, past dates, configurable daily targets with goal
+  history, habit creation, and archive/restore.
+- Per-habit 7-day, 30-day, and custom-range graphs with accessible data tables,
+  difficulty totals, and recorded duration summaries.
+- Local browser persistence, validated JSON backup/restore, and recovery
+  without silently replacing corrupted data.
+- Standalone install metadata, a production offline shell, and app update
+  prompts.
+- Garden-inspired soft colors, original animated illustration, responsive
+  navigation, subtle progress motion, and reduced-motion support.
+
+The owner approved an installable, single-user, local-first app. Accounts,
+servers, and cloud sync are not required. The implementation uses React,
+TypeScript, and Vite, rather than a server framework.
+
+This is not a native desktop installer. Browser installation produces a
+separate app window. Actual installation menus depend on the browser and OS.
+No public website or hosted deployment has been configured.
+
+The core behavior and offline reopening are exercised in Chromium desktop and
+mobile-emulation tests. Real Safari/iOS installation has not been verified.
+Later roadmap phases are not implemented or promised by this inventory.
 
 ## 3. User needs
 
-| Need | Expected outcome |
-|---|---|
-| See today's habits together | Know what remains and record progress quickly. |
-| Track LeetCode practice | Retain problem difficulty, link, time, and notes. |
-| Track quantities | Record water and steps without forcing them into checkboxes. |
-| Understand improvement | See historical graphs, totals, and goal attainment. |
-| Build a lasting productivity system | Expand without losing or fragmenting habit history. |
+| Need                                | Expected outcome                                             |
+| ----------------------------------- | ------------------------------------------------------------ |
+| See today's habits together         | Know what remains and record progress quickly.               |
+| Track LeetCode practice             | Retain problem difficulty, link, time, and notes.            |
+| Track quantities                    | Record water and steps without forcing them into checkboxes. |
+| Understand improvement              | See historical graphs, totals, and goal attainment.          |
+| Build a lasting productivity system | Expand without losing or fragmenting habit history.          |
 
 The initial audience is an individual tracking their own routines. Team
 workspaces and social competition are outside the initial scope.
@@ -42,16 +65,16 @@ not yet approved by the owner.
 
 ### First release
 
-| ID | Capability | Basis |
-|---|---|---|
-| H-01 | A dedicated habit screen with check-off interactions. | Confirmed |
-| H-02 | Historical habit records. | Confirmed |
-| H-03 | Detailed daily LeetCode logging. | Confirmed |
-| H-04 | Numerical habits, including water and steps. | Confirmed |
-| H-05 | Progress graphs in addition to calendar-style history. | Confirmed |
-| H-06 | Create, edit, and archive habits with configurable daily targets. | Proposed |
-| H-07 | Add, edit, and delete entries, including past-date entries. | Proposed |
-| H-08 | Persistent storage across reloads and restarts. | Proposed supporting requirement |
+| ID   | Capability                                                        | Basis                           |
+| ---- | ----------------------------------------------------------------- | ------------------------------- |
+| H-01 | A dedicated habit screen with check-off interactions.             | Confirmed                       |
+| H-02 | Historical habit records.                                         | Confirmed                       |
+| H-03 | Detailed daily LeetCode logging.                                  | Confirmed                       |
+| H-04 | Numerical habits, including water and steps.                      | Confirmed                       |
+| H-05 | Progress graphs in addition to calendar-style history.            | Confirmed                       |
+| H-06 | Create, edit, and archive habits with configurable daily targets. | Proposed                        |
+| H-07 | Add, edit, and delete entries, including past-date entries.       | Proposed                        |
+| H-08 | Persistent storage across reloads and restarts.                   | Proposed supporting requirement |
 
 ### Later candidates
 
@@ -130,14 +153,14 @@ Example: LeetCode practice.
 
 ## 7. LeetCode entry requirements
 
-| Field | Requirement |
-|---|---|
-| Practice date and time | Required; default to now and allow correction. |
-| Difficulty | Required: easy, medium, or hard. |
-| Problem URL | Required; accept valid HTTP(S) links and open them safely. |
-| Note | Optional free text for approach, mistakes, or lessons. |
-| Duration | Proposed optional elapsed time in minutes; nonnegative when supplied. |
-| Problem title or number | Proposed optional field to make history easier to scan. |
+| Field                   | Requirement                                                           |
+| ----------------------- | --------------------------------------------------------------------- |
+| Practice date and time  | Required; default to now and allow correction.                        |
+| Difficulty              | Required: easy, medium, or hard.                                      |
+| Problem URL             | Required; accept valid HTTP(S) links and open them safely.            |
+| Note                    | Optional free text for approach, mistakes, or lessons.                |
+| Duration                | Proposed optional elapsed time in minutes; nonnegative when supplied. |
+| Problem title or number | Proposed optional field to make history easier to scan.               |
 
 "Time of the LeetCode" is not yet fully specified. The proposed design records
 when practice occurred and optionally how long it took. It does not imply a
@@ -171,14 +194,14 @@ explicit decision before adding those concepts.
 
 This is a behavior-oriented model, not a mandated database schema.
 
-| Entity | Core information |
-|---|---|
-| Habit | Identifier, name, type, unit where applicable, creation date, archive state. |
-| Habit goal | Habit, target, effective date; daily schedule initially. |
-| Completion record | Habit, local date, completed state; unique for that habit/date. |
-| Count entry | Identifier, habit, timestamp, local date, numerical amount. |
-| Activity entry | Identifier, habit, timestamp, local date, structured activity fields. |
-| Preferences | Reporting time zone and, if introduced, other user settings. |
+| Entity            | Core information                                                             |
+| ----------------- | ---------------------------------------------------------------------------- |
+| Habit             | Identifier, name, type, unit where applicable, creation date, archive state. |
+| Habit goal        | Habit, target, effective date; daily schedule initially.                     |
+| Completion record | Habit, local date, completed state; unique for that habit/date.              |
+| Count entry       | Identifier, habit, timestamp, local date, numerical amount.                  |
+| Activity entry    | Identifier, habit, timestamp, local date, structured activity fields.        |
+| Preferences       | Reporting time zone and, if introduced, other user settings.                 |
 
 Daily totals and goal attainment should be derived consistently from records.
 If cached, they must remain consistent when source data changes.
@@ -226,13 +249,13 @@ If cached, they must remain consistent when source data changes.
 
 ## 12. Proposed roadmap
 
-| Phase | Intended outcome | Scope |
-|---|---|---|
-| Foundation | A usable, persistent personal habit tracker. | Habit screen, three habit types, LeetCode details, water, manual steps, editing, daily targets. |
-| Insights | Understand progress over time. | Historical graphs, date filters, difficulty breakdown, accurate goal history. Required before calling the first release complete. |
-| Habit improvements | More flexible routines and portability. | Candidate flexible schedules, reminders, streaks, export/import, backup options. |
-| Integrations | Reduce manual recording where useful. | Candidate device-health step imports, LeetCode integration if feasible, account sync. |
-| Broader productivity | Expand beyond habits based on user priorities. | Candidate tasks, projects, notes, and daily/weekly planning. No committed scope yet. |
+| Phase                | Intended outcome                               | Scope                                                                                                                             |
+| -------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Foundation           | A usable, persistent personal habit tracker.   | Habit screen, three habit types, LeetCode details, water, manual steps, editing, daily targets.                                   |
+| Insights             | Understand progress over time.                 | Historical graphs, date filters, difficulty breakdown, accurate goal history. Required before calling the first release complete. |
+| Habit improvements   | More flexible routines and portability.        | Candidate flexible schedules, reminders, streaks, export/import, backup options.                                                  |
+| Integrations         | Reduce manual recording where useful.          | Candidate device-health step imports, LeetCode integration if feasible, account sync.                                             |
+| Broader productivity | Expand beyond habits based on user priorities. | Candidate tasks, projects, notes, and daily/weekly planning. No committed scope yet.                                              |
 
 No dates, external integrations, or later modules are promised by this roadmap.
 
@@ -245,18 +268,24 @@ No dates, external integrations, or later modules are promised by this roadmap.
 - Full task/project management, calendars, or note-taking workspaces.
 - Billing, subscriptions, and enterprise administration.
 
-## 14. Decisions still needed
+## 14. Decisions and remaining questions
 
 These do not change the confirmed vision. Resolve each before implementing the
 affected area.
 
-- Platform and stack: web, mobile, desktop, or a staged approach.
-- Storage and deployment: local-first, hosted, or synced; backup expectations.
-- Whether LeetCode "time" requires timestamp, duration, a live timer, or a mix.
-- Whether LeetCode completion means attempted, solved, or another criterion.
-- Whether any habits need weekly or custom schedules at launch.
-- Preferred water units and whether users can change units.
-- Time-zone changes, backdated corrections, and future-date entry policy.
+- Decided: installable responsive web app; React/TypeScript/Vite; no account.
+- Decided: browser-local storage and manual JSON export/import backups.
+- Initial implementation: explicit practice date/time plus optional minutes,
+  without a live timer. Confirm whether a timer is wanted later.
+- Initial implementation: logged practice counts toward the daily target;
+  solved status is not independently tracked or verified.
+- Initial implementation: daily targets only; flexible schedules remain later.
+- Initial implementation: cups for the water starter habit; custom units for
+  new numerical habits. Units cannot change after habit creation.
+- Initial implementation: stored reporting time zone, stable explicit dates,
+  editable past entries, and no new future-dated entries through the UI.
+- Still open: where to host the production app on HTTPS for everyday use.
+- Still open: any future timer, automatic integrations, or schedule preferences.
 - Which productivity area, if any, should follow habit tracking.
 
 ## 15. Keeping this specification accurate
@@ -265,3 +294,29 @@ Update this document when requirements or behavior change. Track delivery
 status with evidence rather than treating this document as proof of
 implementation. Keep durable AI-facing decisions and development commands in
 `AGENTS.md`; keep product scope and acceptance criteria here.
+
+## 16. Running and storage boundaries
+
+Use Node 22.12+ on the Node 22 line, or a supported newer LTS. Run `npm ci`,
+then `npm run dev` for development. For installation and offline use, run
+`npm run build` and `npm run preview -- --port 4173 --strictPort`, then open
+`http://127.0.0.1:4173`. See the in-app settings for installation instructions.
+
+Keep the same URL for everyday use. `localhost`, `127.0.0.1`, development ports,
+and future hosted domains all have separate storage. Move data between them
+with export/import. Deploy the built `dist/` directory to an HTTPS static host
+at the domain root; the current build does not target a project subdirectory.
+
+The production shell can reopen and accept entries offline after its first
+successful online load. Updates wait for explicit acceptance so open forms are
+not automatically reloaded.
+
+Records are local JSON in localStorage. Browser quota may be reached well
+before the import validator's maximum of 20 MB, 200 habits, or 100,000 entries.
+A failed write shows an error and does not update the displayed saved state.
+Unreadable data is retained for download/recovery. Backups replace data only
+after validation and explicit confirmation; they do not merge.
+
+Local browser storage is not encrypted or backed up automatically. Use one
+active editing window. A stale snapshot is rejected on save, but localStorage
+does not provide full multi-window transactions.
